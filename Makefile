@@ -39,7 +39,7 @@ else
 	INDENT = indent $(INDENT_SETTINGS)
 endif
 
-APP = goldy
+APP = goldy-client
 OBJS = goldy.o daemonize.o log.o
 
 SEND_ONE_DTLS_PACKET = test/send_one_dtls_packet

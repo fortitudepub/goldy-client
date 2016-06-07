@@ -12,7 +12,6 @@ struct instance {
   char *backend_host;
   char *backend_port;
   char *cert_file;
-  char *private_key_file;
   int daemonize;
   int session_timeout;          /* in seconds */
 };
