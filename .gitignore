@@ -6,3 +6,4 @@
 /test/udp_test_server
 /deps/mbedtls-*
 /deps/libev-*
+goldy-client
