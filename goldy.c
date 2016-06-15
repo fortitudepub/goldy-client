@@ -227,6 +227,26 @@ static void log_mbedtls_debug_callback(void *ctx, int level, const char *file, i
   log_debug("mbedtls_debug [%d] %s:%04d: %s", level, file, line, str);
 }
 
+static int server_cert_verify( void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags )
+{
+    char buf[1024];
+    ((void) data);
+
+    mbedtls_printf( "\nVerify requested for (Depth %d):\n", depth );
+    mbedtls_x509_crt_info( buf, sizeof( buf ) - 1, "", crt );
+    mbedtls_printf( "%s", buf );
+
+    if ( ( *flags ) == 0 )
+        mbedtls_printf( "  This certificate has no flags\n" );
+    else
+    {
+        mbedtls_x509_crt_verify_info( buf, sizeof( buf ), "  ! ", *flags );
+        mbedtls_printf( "%s\n", buf );
+    }
+
+    return( 0 );
+}
+
 static int global_init(const struct instance *gi, global_context *gc) {
   int ret;
 #ifdef __APPLE__   // MacOS/X requires an additional call
@@ -291,8 +311,13 @@ static int global_init(const struct instance *gi, global_context *gc) {
                                  mbedtls_ssl_cache_set);
 #endif
 
-  mbedtls_ssl_conf_authmode(&gc->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+  /* Now we can support verify server client, however for performance,
+   * just change to none because openvpn will do the auth again
+   */
+  mbedtls_ssl_conf_authmode(&gc->conf, MBEDTLS_SSL_VERIFY_NONE);
   mbedtls_ssl_conf_ca_chain(&gc->conf, &gc->cacert, NULL);
+  mbedtls_ssl_conf_verify(&gc->conf, server_cert_verify, NULL);
+  
   if ((ret = mbedtls_ssl_cookie_setup(&gc->cookie_ctx,
                                       mbedtls_ctr_drbg_random,
                                       &gc->ctr_drbg)) != 0) {
