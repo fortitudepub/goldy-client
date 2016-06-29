@@ -389,7 +389,8 @@ static int session_init(const global_context *gc,
                         unsigned char client_ip[16], size_t cliip_len,
                         const unsigned char* first_packet, size_t first_packet_len) {
   int ret;
-
+  packet_data *pd;
+  
   memset(sc, 0, sizeof(*sc));
   memcpy(&sc->client_fd, client_fd, sizeof(sc->client_fd));
   if (cliip_len > sizeof(sc->client_ip)) {
@@ -413,15 +414,20 @@ static int session_init(const global_context *gc,
                            mbedtls_timing_set_delay,
                            mbedtls_timing_get_delay);
 
-  /* We already read the first packet of the SSL session from the network in
-   * the initial recvfrom() call on the listening fd. Here we copy the content
-   * of that packet into the SSL incoming data buffer so it'll be consumed on
-   * the next call to mbedtls_ssl_fetch_input(). */
-  if (first_packet_len<MBEDTLS_SSL_BUFFER_LEN) {
-    memcpy(sc->ssl.in_hdr, first_packet, first_packet_len);
-    sc->ssl.in_left = first_packet_len;
+  /* Put the first client packet in to queue and wait SSL OK. */
+  if (ret > PACKET_DATA_BUFFER_SIZE) {
+    /* Drop big packet silently*/
+    log_info("session_init - first packet payload too big");
+    return;
   }
-
+  pd = calloc(1, sizeof(packet_data));
+  memcpy(pd->payload, first_packet, first_packet_len);
+  pd->length = first_packet_len;
+  pd->next = 0;
+  // TODO: add a queue limit here to prevent consume too much memory
+  // if we can't establishe SSL tunnel to backend.
+  LL_APPEND(sc->from_client, pd);
+    
   return 0;
 }
 
@@ -571,6 +577,9 @@ static void session_enable_client_rxtx(EV_P_ session_context *sc) {
   sc->client_rd_watcher.data = sc;
   sc->client_wr_watcher.data = sc;
   ev_io_start(EV_A_ &sc->client_rd_watcher);
+  /* Signal to send first packet to backend. */
+  ev_feed_fd_event(EV_A_ sc->backend_fd.fd, EV_WRITE);
+  ev_io_start(EV_A_ &sc->backend_wr_watcher);  
 }
 
 static void session_step_handshake(EV_P_ ev_io *w, int revents,
@@ -590,7 +599,7 @@ static void session_step_handshake(EV_P_ ev_io *w, int revents,
     return;
 
   case 0:
-    log_debug("(%s:%d) DTLS handshake done", sc->options->backend_host,
+    log_debug("(%s:%s) DTLS handshake done", sc->options->backend_host,
               sc->options->backend_port);
     session_mark_activity(EV_A_ sc);
 #if 0    
@@ -603,7 +612,7 @@ static void session_step_handshake(EV_P_ ev_io *w, int revents,
     return;
 
   case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:
-    log_debug("(%s:%d) DTLS handshake requested hello verification",
+    log_debug("(%s:%s) DTLS handshake requested hello verification",
               sc->options->backend_host, sc->options->backend_port);              
     session_deferred_free(sc, "hello verification");
     return;
@@ -962,10 +971,7 @@ static void global_cb(EV_P_ ev_io *w, int revents) {
     session_start(sc, EV_A);
     log_debug("global_cb - session_start - client_fd %d", sc->client_fd.fd);
 
-    /* Trigger the FSM drive and start DTLS negotiation to backend, and 
-     * during this time, we just silently drop the first packet from 
-     * vpn client.
-     */
+    /* Trigger the FSM drive and start DTLS negotiation to backend. */
     ev_feed_fd_event(EV_A_ sc->backend_fd.fd, EV_READ);
   }
 }
