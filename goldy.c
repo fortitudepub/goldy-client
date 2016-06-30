@@ -418,7 +418,7 @@ static int session_init(const global_context *gc,
   if (ret > PACKET_DATA_BUFFER_SIZE) {
     /* Drop big packet silently*/
     log_info("session_init - first packet payload too big");
-    return;
+    return 0;
   }
   pd = calloc(1, sizeof(packet_data));
   memcpy(pd->payload, first_packet, first_packet_len);
