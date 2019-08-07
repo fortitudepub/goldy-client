@@ -9,7 +9,12 @@ LIBEV_LIB_DIR ?= deps/libev-$(LIBEV_VER)
 
 CFLAGS ?= -g
 WARNING_CFLAGS ?= -Wall -W -Wdeclaration-after-statement
-LDFLAGS ?=
+
+ifeq ($(findstring MINGW, $(shell uname)), MINGW)
+  LDFLAGS ?= -lws2_32
+else
+  LDFLAGS ?=
+endif
 
 LOCAL_CFLAGS = $(WARNING_CFLAGS) -I$(MBEDTLS_INC_DIR) -I$(LIBEV_INC_DIR) -D_FILE_OFFSET_BITS=64
 LOCAL_LDFLAGS = -lm
