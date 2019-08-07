@@ -33,7 +33,21 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <arpa/inet.h>
+
+#ifdef __MINGW32__
+    #include <winsock2.h>
+    #include <Ws2ipdef.h>
+    #ifndef INET6_ADDRSTRLEN
+        #define INET6_ADDRSTRLEN 46
+    #endif
+    /* https://yarchive.net/comp/linux/socklen_t.html */
+    #ifndef socklen_t
+        #define socklen_t int
+    #endif
+#else
+    #include <arpa/inet.h>
+#endif
+
 #include <getopt.h>
 
 #include "goldy.h"

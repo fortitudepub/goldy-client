@@ -7,7 +7,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <pwd.h>
+#ifndef __MINGW32__
+	#include <pwd.h>
+#endif
 #include <signal.h>
 #include <string.h>
 #include "log.h"
@@ -15,6 +17,7 @@
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 
+#ifndef __MINGW32__
 static void child_handler(int signum)
 {
     switch(signum) {
@@ -23,10 +26,14 @@ static void child_handler(int signum)
     case SIGCHLD: exit(EXIT_FAILURE); break;
     }
 }
+#endif
 
 
 void daemonize(const char *lockfile,const char* daemonuser)
 {
+#ifdef __MINGW32__
+    log_error("Daemonize not supported under MINGW32!");
+#else
     pid_t pid, sid, parent;
     int lfp = -1;
 
@@ -113,4 +120,5 @@ void daemonize(const char *lockfile,const char* daemonuser)
 
     /* Tell the parent process that we are A-okay */
     kill( parent, SIGUSR1 );
+#endif
 }
